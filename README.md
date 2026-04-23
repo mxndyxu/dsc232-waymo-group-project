@@ -14,40 +14,69 @@ Each observation corresponds to a single tracked vehicle trajectory extracted fr
 
 ## Data
 
-**scenario_id (string, categorical)**<br>
+#### **scenario_id (string, categorical)**<br>
 A unique identifier for a driving scenario (scene). Each scenario contains multiple agents (vehicles) and represents a short driving clip.<br>
 Scale: Nominal -- identifier, no numerical meaning<br>
 Distribution: After aggregating by scenario_id, the scenario-level statistics are shown below.
 
-Number of scenarios: 29,411<br>
-Mean: 28.30 vehicles per scenario<br>
-Std dev: 19.83<br>
-Min: 1<br>
-Max: 218<br>
-Quantiles: [1, 14, 24, 37, 218]<br>
+* Number of scenarios: 29,411<br>
+* Mean: 28.30 vehicles per scenario<br>
+* Std dev: 19.83<br>
+* Min: 1<br>
+* Max: 218<br>
+* Quantiles: [1, 14, 24, 37, 218]<br>
 
 This shows a moderately right-skewed distribution where most scenarios contain a few dozen vehicles, but some dense traffic scenes contain significantly more.
 
-**track_id (long, categorical)**<br>
+#### **track_id (long, categorical)**<br>
 A unique identifier for a specific vehicle within a scenario.<br>
 Scale: Nominal -- identifier<br>
-Distribution: ***TODO***
+Distribution: Similar to scenario_id, statistics after aggregating by track_id are shown below.
 
-**past_x (array<double>, continuous), past_y (array<double>, continuous)**<br>
+* Count: 6,855<br>
+* Mean: 121.42<br>
+* Std dev: 220.61<br>
+* Min: 1<br>
+* Max: 3,246<br>
+* Quantiles: [1, 6, 45, 191, 3246]
+
+The distribution is highly right-skewed with a long tail. A small subset of track_ids account for a disproportionately large number of observations (up to 3,246), reflecting identifier reuse across independent scenarios rather than repeated tracking of the same physical object.
+
+#### **past_x (array<double>, continuous), past_y (array<double>, continuous)**<br>
 Sequences of x and y coordinates representing the observed past motion of a vehicle.
 
 past_x[i], past_y[i] = position of the vehicle at timestep i in the past<br>
 History length: 11 timesteps (~1 second of motion at 10 Hz)<br>
 Scale: Continuous, ratio -- real-valued coordinates in meters in a local coordinate frame<br>
-Distribution: ***TODO***
+Distribution: The coordinate distributions were computed by flattening trajectory timesteps, resulting in over 9 million spatial points. 
 
-**future_x (array<double>, continuous), future_y (array<double>, continuous)**<br>
+* Count: 9,155,806<br>
+* Mean X/Y: 1707.59 / 476.31<br>
+* Std X/Y: 5201.91 / 6328.72<br>
+* Min X/Y: -35046.16 / -37133.23<br>
+* Max X/Y: 36063.83 / 237063.28<br>
+* X quantiles: [-35046.1640625, -712.203125, 1195.2431640625, 4899.6650390625, 36063.83203125]<br>
+* Y quantiles: [-37133.23046875, -2616.59228515625, 492.1311950683594, 3147.22216796875, 237063.28125]
+
+The distribution is highly dispersed with large variance due to aggregation across many scenarios with different local coordinate origins. Median values are closer to zero than the mean, indicating skewness and the presence of extreme spatial outliers. Most motion is concentrated within a few thousand meters, but rare extreme values produce long tails.
+
+#### **future_x (array<double>, continuous), future_y (array<double>, continuous)**<br>
 This is the target variable. Sequences of x and y coordinates representing the ground-truth future motion of the vehicle.
 
 future_x[i], future_y[i] = position of the vehicle at timestep i in the future<br>
 Prediction horizon: 80 timesteps (~8 seconds at 10 Hz)<br>
 Scale: Continuous, ratio -- meters in the same coordinate frame as past trajectories<br>
-Distribution: ***TODO***
+Distribution: Similar methodology to past data.
+
+* Count: 66,587,680<br>
+* Mean X/Y: 1292.10 / 370.74<br>
+* Std X/Y: 4634.97 / 5540.49<br>
+* Min X/Y: -35046.16 / -37130.30<br>
+* Max X/Y: 36063.83 / 237072.20<br>
+* X quantiles: [-35046.16, 0.00, 193.68, 3117.01, 36063.83]<br>
+* Y quantiles: [-37130.30, -1706.96, 0.00, 1730.32, 237072.20]
+
+The future distribution is slightly more concentrated near zero compared to the past, reflecting that many trajectories remain within local regions over short prediction horizons. However, it still exhibits heavy tails and high variance due to aggregation across diverse driving scenarios.
 
 ## Missing and Duplicate Values
 
