@@ -96,6 +96,33 @@ Distribution: Similar methodology to past data.
 
 The future distribution is slightly more concentrated near zero compared to the past, reflecting that many trajectories remain within local regions over short prediction horizons. However, it still exhibits heavy tails and high variance due to aggregation across diverse driving scenarios.
 
+## Data Visualizations
+
+To better understand the scale and spatial dynamics of the Waymo dataset, we aggregated the trajectory data using PySpark and generated the following visualizations.
+
+#### 1. Top 10 Busiest Intersections
+![Top 10 Busiest Intersections](Bar_Plot.png)
+
+**Description & Insights:**
+This bar chart displays the specific `scenario_id` values that contain the highest volume of tracked agents. As shown, the busiest intersection contains over 210 simultaneously tracked vehicles. By isolating these high-density scenes, we can assess the computational load and interaction complexity our forecasting model will need to handle compared to quieter environments. 
+
+#### 2. Intersection Density
+![Intersection Density](Histogram.png)
+
+**Description & Insights:**
+This histogram plots the frequency distribution of vehicle counts per 9.1-second scenario. The data exhibits a strong right-skewed distribution. While the vast majority of the 29,411 scenarios contain fewer than 50 vehicles, there is a long tail of highly congested scenes extending past 200 vehicles. Understanding this density distribution is crucial for our preprocessing plan, ensuring we account for data imbalance between sparse and highly congested traffic patterns.
+
+#### 3. Detailed Vehicle Trajectory
+![Detailed Vehicle Trajectory](Scatterplot.png)
+
+**Description & Insights:**
+This spatial scatter plot maps the local $X$ and $Y$ coordinates (in meters) of a single tracked vehicle over a full 9.1-second window. 
+* **Green Star:** The vehicle's initial starting position.
+* **Blue Line (Past):** The 1.1-second historical trajectory used as the input features ($X$).
+* **Red Line (Future):** The 8.0-second future trajectory used as the ground-truth target labels ($y$).
+
+This visualization perfectly illustrates the Sequence-to-Sequence nature of our modeling task, showing the exact spatial progression the algorithm must learn to predict based on the initial motion vectors.
+
 ## Missing and Duplicate Values
 
 Missing values: None (invalid or incomplete trajectories are filtered out during preprocessing)<br>
