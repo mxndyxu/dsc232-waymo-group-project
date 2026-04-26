@@ -5,6 +5,24 @@ Cory Ornelas<br>
 Audrius Pasvenskas<br>
 Mandy Xu<br>
 
+## SDSC Expanse Environment Setup
+To process the 30 GB of raw Waymo Protobuf files, we utilized the SDSC Expanse supercomputer. We requested an interactive session with the following hardware allocation:
+
+Total Cores: 32
+
+Total Memory: 150 GB
+
+SparkSession Configuration & Justification:
+Because the 32 cores were allocated on a single SDSC Expanse node via Slurm, Spark dynamically defaulted to Local Mode. Rather than incurring network overhead by splitting tasks across separate executor JVMs, Spark pooled all 32 cores directly into the Driver for highly efficient multi-threaded parallel processing.
+
+Executor Instances: 31 (Calculated as Total Cores [32] - 1 Driver = 31).
+
+Driver Memory: 2 GB.
+
+Executor Memory: 4 GB (Calculated as [150 GB - 2 GB] / 31 = 4.77 GB. We conservatively allocated 4 GB per executor to leave room for OS overhead).
+
+Spark UI Executor Allocation Screenshot: ![Spark UI Executors](spark_executors.png)
+
 ## Dataset Overview
 
 Dataset: [Waymo Open Motion Dataset](https://waymo.com/open/data/motion/)<br>
