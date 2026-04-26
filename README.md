@@ -96,6 +96,11 @@ Distribution: Similar methodology to past data.
 
 The future distribution is slightly more concentrated near zero compared to the past, reflecting that many trajectories remain within local regions over short prediction horizons. However, it still exhibits heavy tails and high variance due to aggregation across diverse driving scenarios.
 
+## Missing and Duplicate Values
+
+Missing values: None (invalid or incomplete trajectories are filtered out during preprocessing)<br>
+Duplicate values: None detected in the final dataset
+
 ## Data Visualizations
 
 To better understand the scale and spatial dynamics of the Waymo dataset, we aggregated the trajectory data using PySpark and generated the following visualizations.
@@ -122,11 +127,6 @@ This spatial scatter plot maps the local $X$ and $Y$ coordinates (in meters) of 
 * **Red Line (Future):** The 8.0-second future trajectory used as the ground-truth target labels ($y$).
 
 This visualization perfectly illustrates the Sequence-to-Sequence nature of our modeling task, showing the exact spatial progression the algorithm must learn to predict based on the initial motion vectors.
-
-## Missing and Duplicate Values
-
-Missing values: None (invalid or incomplete trajectories are filtered out during preprocessing)<br>
-Duplicate values: None detected in the final dataset
 
 ## Preprocessing Plan
 
