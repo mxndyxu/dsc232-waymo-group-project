@@ -21,7 +21,7 @@ Driver Memory: 2 GB.
 
 Executor Memory: 4 GB (Calculated as [150 GB - 2 GB] / 31 = 4.77 GB. We conservatively allocated 4 GB per executor to leave room for OS overhead).
 
-Spark UI Executor Allocation Screenshot: ![Spark UI Executors](spark_executors.png)
+Spark UI Executor Allocation Screenshot: ![Spark UI Executors](plots/spark_executors.png)
 
 ## Dataset Overview
 
@@ -106,19 +106,19 @@ Duplicate values: None detected in the final dataset
 To better understand the scale and spatial dynamics of the Waymo dataset, we aggregated the trajectory data using PySpark and generated the following visualizations.
 
 #### 1. Top 10 Busiest Intersections
-![Top 10 Busiest Intersections](Bar_Plot.png)
+![Top 10 Busiest Intersections](plots/Bar_Plot.png)
 
 **Description & Insights:**
 This bar chart displays the specific `scenario_id` values that contain the highest volume of tracked agents. As shown, the busiest intersection contains over 210 simultaneously tracked vehicles. By isolating these high-density scenes, we can assess the computational load and interaction complexity our forecasting model will need to handle compared to quieter environments. 
 
 #### 2. Intersection Density
-![Intersection Density](Histogram.png)
+![Intersection Density](plots/Histogram.png)
 
 **Description & Insights:**
 This histogram plots the frequency distribution of vehicle counts per 9.1-second scenario. The data exhibits a strong right-skewed distribution. While the vast majority of the 29,411 scenarios contain fewer than 50 vehicles, there is a long tail of highly congested scenes extending past 200 vehicles. Understanding this density distribution is crucial for our preprocessing plan, ensuring we account for data imbalance between sparse and highly congested traffic patterns.
 
 #### 3. Detailed Vehicle Trajectory
-![Detailed Vehicle Trajectory](Scatterplot.png)
+![Detailed Vehicle Trajectory](plots/Scatterplot.png)
 
 **Description & Insights:**
 This spatial scatter plot maps the local $X$ and $Y$ coordinates (in meters) of a single tracked vehicle over a full 9.1-second window. 
