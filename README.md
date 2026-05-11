@@ -138,3 +138,63 @@ We will also apply transformations to prepare the data for analysis. Continuous 
 
 All preprocessing will be performed using Spark DataFrame operations to support distributed processing. This includes functions such as dropna() and fillna() for handling missing data, filter() for selecting relevant scenarios (e.g., intersections), withColumn() for creating new features, and groupBy() and agg() for aggregations. These operations allow efficient handling of large-scale data while maintaining scalability across distributed computing resources.
 
+## Fitting Analysis
+### Model Fitting and Evaluation
+We trained gradient-boosted decision tree regression models using XGBoost to predict short-term vehicle trajectory displacement. The task was formulated as supervised regression, where the model predicts future (1 second) relative x- and y-displacements using past trajectory motion features.
+
+The dataset was split into 80% training data and 20% evaluation data. Two separate XGBoost regressors were trained: one for x-displacement prediction and one for y-displacement prediction. Outlier filtering was applied before training by removing trajectories with future displacements outside ±40 meters.
+
+The feature engineering pipeline included:
+* Estimating vehicle velocity by measuring how far the vehicle moved between the first and last observed timesteps
+* Creating prediction targets by calculating how far the vehicle moves 1 second into the future relative to its current position
+* Converting past vehicle positions into relative coordinates by subtracting the starting position from each timestep (this helps the model focus on movement patterns instead of absolute map locations)
+* Feature vector assembly using VectorAssembler to combine all features into a single input vector
+* Feature standardization using StandardScaler to normalize feature magnitudes and stabilize model training
+
+### Underfitting vs Overfitting
+The baseline XGBoost model produced:
+
+* X-coordinate:
+  * Training RMSE: 0.4643 m
+  * Test RMSE: 0.4737 m
+* Y-coordinate:
+  * Training RMSE: 0.4920 m
+  * Test RMSE: 0.4944 m
+
+The training and testing errors are very close, indicating that the model generalizes well to unseen data and does not exhibit significant overfitting. At the same time, the relatively low RMSE values suggest the model is capturing meaningful motion patterns, so it is not strongly underfitting either.
+
+Overall, the baseline model falls in a good generalization region of the fitting curve, slightly leaning toward mild underfitting due to its relatively shallow tree depth and limited ensemble size.
+
+### Hyperparameter Tuning
+**Baseline Model**
+
+Hyperparameters:
+* max_depth = 5
+* n_estimators = 20
+
+Performance:
+* Test RMSE (X): 0.4737 meters 
+
+This model trains relatively quickly and provides strong generalization performance with low risk of overfitting.
+
+**Deep XGBoost Model**
+
+Hyperparameters:
+* max_depth = 10
+* n_estimators = 40
+
+Performance:
+* Test RMSE (X): 0.4285 meters
+
+Increasing tree depth and ensemble size improved predictive accuracy by allowing the model to capture more complex nonlinear trajectory patterns and motion dynamics.
+
+### Best Performing Model
+The deeper XGBoost model (max_depth = 10, n_estimators = 40) performed best, achieving the lowest test RMSE of 0.4285 meters.
+
+This improvement likely comes from:
+* Deeper trees capturing more complex trajectory relationships
+* Better modeling of nonlinear vehicle motion behavior
+
+Additionally, the deeper model improved evaluation performance rather than only training performance, suggesting the additional complexity meaningfully improved learning rather than simply memorizing the training data.
+
+Overall, the tuned XGBoost model showed strong performance in predicting short-term vehicle trajectories, achieving an average prediction error of less than 1 meter on the evaluation dataset.
