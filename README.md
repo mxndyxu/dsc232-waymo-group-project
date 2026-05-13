@@ -218,3 +218,16 @@ This improvement likely comes from:
 Additionally, the deeper model improved evaluation performance rather than only training performance, suggesting the additional complexity meaningfully improved learning rather than simply memorizing the training data.
 
 Overall, the tuned XGBoost model showed strong performance in predicting short-term vehicle trajectories, achieving an average prediction error of less than 1 meter on the evaluation dataset.
+
+
+### Potential Models for Milestone 4
+
+For Milestone 4, our group is considering continuing with additional distributed machine learning models to improve trajectory forecasting performance and try to capture different vehicle movement patterns.  Our first model used a distributed Gradient Boosted Tree regression model to predict future vehicle displacement, so we wanted to compare several additional ensemble-learning approaches that could improve prediction accuracy and generalization.
+
+We are considering Random Forest Regression because it could reduce overfitting and instability by averaging predictions across many decision trees rather than relying on a single boosted sequence of trees. Since autonomous vehicle trajectory data contains nonlinear movement behavior, Random Forest models may provide more stable predictions across different driving scenarios while still scaling efficiently in the Spark environment.
+
+We could also continue improving our Gradient Boosted Tree models through additional hyperparameter tuning, including adjustments to tree depth, number of iterations, and learning rate. Our initial model produced reasonable RMSE results, but further tuning could help capture more subtle movement patterns and trajectory relationships while balancing training and testing performance to avoid overfitting.
+
+Another model we are interested in exploring is distributed XGBoost using Spark or Ray Train implementations. XGBoost is designed for scalable distributed training and often performs well on large datasets. The Waymo dataset is computationally intensive so distributed XGBoost may allow our group to train more advanced models efficiently across multiple executors while supporting more extensive feature engineering and parameter optimization.
+
+As we move into Milestone 4, we could also expand our preprocessing and feature engineering by incorporating additional motion-related features and potentially testing with longer prediction horizons. Overall, our goal is to compare multiple distributed ensemble-learning approaches while improving both scalability and predictive performance for large-scale autonomous vehicle trajectory forecasting.
