@@ -30,7 +30,7 @@ For this pipeline, the SDSC Expanse SLURM allocation was provisioned on a single
 
 As proven by the API pull above, the Spark environment successfully allocated 4.62 GB of active memory and executed over 2,500 parallelized tasks during the XGBoost training phase. While 4.62 GB may appear low for processing a 30 GB dataset, this metric only reflects the memory capped for Spark's Java-based orchestration (spark.driver.memory="8g"). The actual model training was executed by SparkXGBRegressor. Because XGBoost relies on a highly optimized native C++ backend, it operates entirely outside of the restrictive Spark Java Virtual Machine (JVM). This architectural pivot allowed the algorithm to freely utilize the remainder of the node's 150 GB physical memory allocation to process the massive gradient histograms completely in-memory, bypassing Java's strict memory limits and eliminating Out-Of-Memory (OOM) crashes.
 
-Spark UI & Cluster Configuration Verification Screenshot: ![Spark  Configuration Verification](spark_config_verfication.png)
+Spark UI & Cluster Configuration Verification Screenshot: ![Spark  Configuration Verification](plots/spark_config_verfication.png)
 
 ## Data Skew Analysis
 
