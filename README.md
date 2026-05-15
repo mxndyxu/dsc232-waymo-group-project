@@ -220,9 +220,9 @@ Additionally, the deeper model improved evaluation performance rather than only 
 Overall, the tuned XGBoost model showed strong performance in predicting short-term vehicle trajectories, achieving an average prediction error of less than 1 meter on the evaluation dataset.
 
 
-### Potential Models for Milestone 4
+## Potential Models for Milestone 4
 
-For Milestone 4, our group is considering continuing with additional distributed machine learning models to improve trajectory forecasting performance and try to capture different vehicle movement patterns.  Our first model used a distributed Gradient Boosted Tree regression model to predict future vehicle displacement, so we wanted to compare several additional ensemble-learning approaches that could improve prediction accuracy and generalization.
+For Milestone 4, our group is considering continuing with additional distributed machine learning models to improve trajectory forecasting performance and try to capture different vehicle movement patterns.  Our first model used a distributed Gradient Boosted Tree regression model to predict future vehicle displacement, so we could compare additional ensemble-learning approaches that sould improve prediction accuracy and generalization.
 
 We are considering Random Forest Regression because it could reduce overfitting and instability by averaging predictions across many decision trees rather than relying on a single boosted sequence of trees. Since autonomous vehicle trajectory data contains nonlinear movement behavior, Random Forest models may provide more stable predictions across different driving scenarios while still scaling efficiently in the Spark environment.
 
