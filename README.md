@@ -229,3 +229,31 @@ We are considering Random Forest Regression because it could reduce overfitting 
 We could also continue improving our Gradient Boosted Tree models through additional hyperparameter tuning, including adjustments to tree depth, number of iterations, and learning rate. Our initial model produced reasonable RMSE results, but further tuning could help capture more subtle movement patterns and trajectory relationships while balancing training and testing performance to avoid overfitting.  Additonal, we could continue to optimize our XGBoost. The XGBoost already also produced positive results on the Waymo dataset, so we could further experiment with hyperparameter tuning, larger feature sets, and distributed training configurations to better balance predictive accuracy, scalability, and training efficiency.
 
 As we move into Milestone 4, we could also expand our preprocessing and feature engineering by incorporating additional motion-related features and potentially testing with longer prediction horizons. Overall, our goal is to compare multiple distributed ensemble-learning approaches while improving both scalability and predictive performance for large-scale autonomous vehicle trajectory forecasting.
+
+
+## Conclusion
+
+For our first model, we used XGBoost to predict short-term vehicle movement from the Waymo Open Motion Dataset. The task was to take roughly 1 second of a vehicle's past positions and predict where it would be 1 second into the future.
+
+| | Baseline (max_depth=5, n=20) | Tuned (max_depth=10, n=40) |
+|---|---|---|
+| Test RMSE (X) | 0.4737 m | 0.3474 m |
+| Test RMSE (Y) | 0.4944 m | 0.4285 m |
+
+The model averaged under 1 meter of spatial error, which we felt was a strong result for a first attempt.
+
+## Areas for Improvement
+
+Further Tuning: We only experimented with max_depth and n_estimators. Further tuning of additional hyperparameters could improve accuracy even more.
+Richer Features: Adding additional features such as speed, acceleration, and relative distances between agents could give the model a better picture of how vehicles interact with each other.
+Extended Prediction Horizon: The data supports up to 8 seconds of future trajectory, so pushing the prediction beyond 1 second could lead to better accuracy and more realistic planning scenarios.
+Sequence-Aware Models: XGBoost cannot learn patterns across the full 11 timesteps of past motion, so switching to a model like an LSTM or Transformer could help the model better understand the full sequence of past motion.
+
+
+## Role of Distributed Computing: 
+
+Processing 30 GB of raw Waymo Protobuf files on a standard machine would not have been realistic. To handle the full dataset we used the SDSC Expanse supercomputer, requesting an interactive session through SLURM with 32 cores and 150 GB of memory. 
+
+With everything running on one node, Spark used local[*] mode which kept all 32 cores working together instead of splitting them up. This made the whole process more efficient and Spark coordinated over 2,500 tasks during training with no issues. The workload was spread evenly across all cores, confirmed by a Max/Median task duration ratio of 1.00x. 
+
+We originally tried using PySpark's native GBTRegressor but it kept crashing with Out-Of-Memory errors even with a heavy distributed configuration. The problem was that it could not construct the gradient histograms within the 150 GB memory footprint. Switching to SparkXGBRegressor fixed this because XGBoost runs on a C++ backend outside of the JVM, so it could freely use the full physical memory of the node without hitting Java's memory limits.
