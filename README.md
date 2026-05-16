@@ -242,7 +242,7 @@ For our first model, we used XGBoost to predict short-term vehicle movement from
 
 The model averaged under 1 meter of spatial error, which we felt was a strong result for a first attempt.
 
-## Areas for Improvement
+### Areas for Improvement
 
 Further Tuning: We only experimented with max_depth and n_estimators. Further tuning of additional hyperparameters could improve accuracy even more.
 Richer Features: Adding additional features such as speed, acceleration, and relative distances between agents could give the model a better picture of how vehicles interact with each other.
@@ -250,7 +250,7 @@ Extended Prediction Horizon: The data supports up to 8 seconds of future traject
 Sequence-Aware Models: XGBoost cannot learn patterns across the full 11 timesteps of past motion, so switching to a model like an LSTM or Transformer could help the model better understand the full sequence of past motion.
 
 
-## Role of Distributed Computing: 
+### Role of Distributed Computing: 
 
 Processing 30 GB of raw Waymo Protobuf files on a standard machine would not have been realistic. To handle the full dataset we used the SDSC Expanse supercomputer, requesting an interactive session through SLURM with 32 cores and 150 GB of memory. 
 
