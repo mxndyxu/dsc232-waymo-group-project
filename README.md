@@ -203,7 +203,7 @@ Hyperparameters:
 * n_estimators = 40
 
 Performance:
-* Test RMSE (X): 0.3474 meters
+* Training RMSE (X): 0.3474 meters
 * Test RMSE (X): 0.4285 meters
 
 By increasing the max_depth to 10, the algorithm was able to better isolate nuanced kinematic edge cases. While this deeper model exhibits mild overfitting (evidenced by the 8-centimeter gap between the training error and test error), it successfully generalized the complex physics better than the baseline. It represents an optimal balance in the bias-variance tradeoff: it traded a slight increase in variance for a significant reduction in overall spatial bias, proving to be the superior predictive architecture.
