@@ -181,6 +181,50 @@ The feature engineering pipeline included:
 * Feature vector assembly using VectorAssembler to combine all features into a single input vector
 * Feature standardization using StandardScaler to normalize feature magnitudes and stabilize model training
 
+```python
+# Train X coordinate
+xgb_x = SparkXGBRegressor(
+    features_col="scaled_features", 
+    label_col="target_dx_1s",
+    num_workers=7,          
+    max_depth=5,            
+    n_estimators=20,        
+    use_gpu=False           
+)
+xgb_model_x = xgb_x.fit(train_df)
+
+# Train Y coordinate
+xgb_y = SparkXGBRegressor(
+    features_col="scaled_features", 
+    label_col="target_dy_1s",
+    num_workers=7,          
+    max_depth=5,            
+    n_estimators=20,        
+    use_gpu=False           
+)
+xgb_model_y = xgb_y.fit(train_df)
+
+# Trajectory combiner
+pred_x_df = xgb_model_x.transform(eval_df).withColumnRenamed("prediction", "pred_dx_1s")
+final_trajectory_df = xgb_model_y.transform(pred_x_df).withColumnRenamed("prediction", "pred_dy_1s")
+
+final_trajectory_df = final_trajectory_df.withColumn(
+    "spatial_error_meters",
+    sqrt(pow(col("target_dx_1s") - col("pred_dx_1s"), 2) + 
+         pow(col("target_dy_1s") - col("pred_dy_1s"), 2))
+)
+
+# Evaluate X
+evaluator_x = RegressionEvaluator(labelCol="target_dx_1s", predictionCol="prediction", metricName="rmse")
+pred_train_x = xgb_model_x.transform(train_df)
+rmse_train_x = evaluator_x.evaluate(pred_train_x)
+
+# Evaluate Y
+evaluator_y = RegressionEvaluator(labelCol="target_dy_1s", predictionCol="prediction", metricName="rmse")
+pred_train_y = xgb_model_y.transform(train_df)
+rmse_train_y = evaluator_y.evaluate(pred_train_y)
+```
+
 The baseline XGBoost model produced:
 
 * X-coordinate:
@@ -216,6 +260,24 @@ Performance:
 * Training RMSE (X): 0.3474 meters
 * Test RMSE (X): 0.4285 meters
 
+```python
+# Create and train deep XGBoost model
+xgb_deep = SparkXGBRegressor(
+    features_col="scaled_features", 
+    label_col="target_dx_1s",
+    num_workers=7,          
+    max_depth=10,
+    n_estimators=40,
+    use_gpu=False           
+)
+xgb_model_deep = xgb_deep.fit(train_df)
+
+# Evaluate deep model
+pred_deep_x = xgb_model_deep.transform(eval_df)
+evaluator_deep = RegressionEvaluator(labelCol="target_dx_1s", predictionCol="prediction", metricName="rmse")
+rmse_deep_x = evaluator_deep.evaluate(pred_deep_x)
+```
+
 By increasing the max_depth to 10, the algorithm was able to better isolate nuanced kinematic edge cases. While this deeper model exhibits mild overfitting (evidenced by the 8-centimeter gap between the training error and test error), it successfully generalized the complex physics better than the baseline. It represents an optimal balance in the bias-variance tradeoff: it traded a slight increase in variance for a significant reduction in overall spatial bias, proving to be the superior predictive architecture.
 
 #### Best Performing Model
@@ -229,8 +291,8 @@ Additionally, the deeper model improved evaluation performance rather than only 
 
 Overall, the tuned XGBoost model showed strong performance in predicting short-term vehicle trajectories, achieving an average prediction error of less than 1 meter on the evaluation dataset.
 
-
 ### Model 2
+#### Model Fitting and Evaluation
 
 
 ## Conclusion
