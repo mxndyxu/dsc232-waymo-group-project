@@ -65,13 +65,9 @@ This spatial scatter plot maps the local $X$ and $Y$ coordinates (in meters) of 
 This visualization perfectly illustrates the Sequence-to-Sequence nature of our modeling task, showing the exact spatial progression the algorithm must learn to predict based on the initial motion vectors.
 
 ## Methods
-### Dataset Overview
-Dataset: [Waymo Open Motion Dataset](https://waymo.com/open/data/motion/)<br>
-Number of observations: 832,346
-
-Each observation corresponds to a single tracked vehicle trajectory extracted from raw scenario protobuf files after filtering and preprocessing.
-
 ### Data Exploration
+Dataset: [Waymo Open Motion Dataset](https://waymo.com/open/data/motion/)<br>
+
 The dataset used in this project was the Waymo Open Motion Dataset, a large-scale autonomous driving dataset containing real-world vehicle motion data. After filtering and preprocessing, the final dataset contained 832,346 observations, where each observation represented a single tracked vehicle trajectory within a driving scenario.
 
 The dataset included both categorical identifiers and continuous spatial trajectory data. scenario_id represented a unique driving scene, while track_id identified a specific vehicle within that scenario. Aggregating by scenario_id showed that the dataset contained 29,411 unique scenarios with an average of 28.3 vehicles per scene. The distribution was moderately right-skewed, with some dense traffic scenes containing up to 218 vehicles. Aggregating by track_id produced a highly right-skewed distribution, where most identifiers appeared relatively infrequently while a small subset appeared many times due to identifier reuse across independent scenarios.
@@ -80,7 +76,8 @@ The continuous variables consisted of sequences of x- and y-coordinate positions
 
 To analyze the spatial distributions, the trajectory arrays were flattened into individual coordinate points. Both past and future coordinate distributions exhibited high variance and heavy tails due to aggregation across many independent driving scenarios with different local coordinate frames. Although the global means were not centered near zero, the median and lower quantiles were substantially closer to zero, indicating skewed distributions with extreme spatial outliers. Most vehicle motion remained concentrated within a few thousand meters, while a smaller number of trajectories extended much farther.
 
-### Data
+Because the data was processed on a unified node architecture, partition skew was non-existent. Our task duration analysis confirmed a Max/Median task ratio of 1.00x (Max: 33.23s, Median: 33.18s), proving a perfectly balanced workload across the allocated cores with zero straggler tasks.
+
 #### **scenario_id (string, categorical)**<br>
 A unique identifier for a driving scenario (scene). Each scenario contains multiple agents (vehicles) and represents a short driving clip.<br>
 Scale: Nominal -- identifier, no numerical meaning<br>
@@ -145,9 +142,6 @@ Distribution: Similar methodology to past data.
 
 The future distribution is slightly more concentrated near zero compared to the past, reflecting that many trajectories remain within local regions over short prediction horizons. However, it still exhibits heavy tails and high variance due to aggregation across diverse driving scenarios.
 
-### Data Skew Analysis
-Because the data was processed on a unified node architecture, partition skew was non-existent. Our task duration analysis confirmed a Max/Median task ratio of 1.00x (Max: 33.23s, Median: 33.18s), proving a perfectly balanced workload across the allocated cores with zero straggler tasks.
-
 ### Preprocessing
 The raw Waymo scenario files were stored as protobuf records containing object tracks and timestep-based state information. During preprocessing, the dataset was filtered to intersection-based scenarios by selecting only scenes containing dynamic traffic light states. Vehicle tracks were then extracted by selecting objects with object_type == 1 and requiring complete 91-frame trajectories.
 
@@ -164,15 +158,9 @@ Features were standardized using StandardScaler to normalize feature magnitudes 
 Outlier filtering was also applied by removing trajectories with future displacement values outside ±40 meters in either direction. This reduced the impact of extreme or unrealistic motion samples during model training.
 
 ### Model 1: XGBoost Regression
-#### Architectural Note: Model Selection & Memory Constraints
-The initial architecture for this pipeline utilized PySpark's native GBTRegressor. However, scaling this model to the full 30GB Waymo dataset caused catastrophic Out-Of-Memory (OOM) failures on the JVM. The model consistently crashed the cluster despite utilizing a heavy distributed configuration (7 executors, 4 cores each, 15GB memory per executor, plus 2GB overhead) on a 130GB+ compute node.
+**Note:** The initial architecture for this pipeline utilized PySpark's native GBTRegressor. However, scaling this model to the full 30GB Waymo dataset caused catastrophic Out-Of-Memory (OOM) failures on the JVM. The model consistently crashed the cluster despite utilizing a heavy distributed configuration (7 executors, 4 cores each, 15GB memory per executor, plus 2GB overhead) on a 130GB+ compute node. Because the native implementation could not construct the required gradient histograms within a 150GB memory footprint, the pipeline was transitioned to SparkXGBRegressor. By leveraging XGBoost's highly optimized C++ backend, the model was able to manage memory much more efficiently, successfully completing the training phase well within the cluster's hardware limits.
 
-Because the native implementation could not construct the required gradient histograms within a 150GB memory footprint, the pipeline was transitioned to SparkXGBRegressor. By leveraging XGBoost's highly optimized C++ backend, the model was able to manage memory much more efficiently, successfully completing the training phase well within the cluster's hardware limits.
-
-#### Model Fitting and Evaluation
 We trained gradient-boosted decision tree regression models using XGBoost to predict short-term vehicle trajectory displacement. The task was formulated as supervised regression, where the model predicts future (1 second) relative x- and y-displacements using past trajectory motion features.
-
-The dataset was split into 80% training data and 20% evaluation data. Two separate XGBoost regressors were trained: one for x-displacement prediction and one for y-displacement prediction. Outlier filtering was applied before training by removing trajectories with future displacements outside ±40 meters.
 
 The feature engineering pipeline included:
 * Estimating vehicle velocity by measuring how far the vehicle moved between the first and last observed timesteps
@@ -182,6 +170,47 @@ The feature engineering pipeline included:
 * Feature standardization using StandardScaler to normalize feature magnitudes and stabilize model training
 
 ```python
+exprs = [col("*")]
+
+# Exisitng velocity calc
+exprs.append((col("past_x_10") - col("past_x_0")).alias("v_x"))
+exprs.append((col("past_y_10") - col("past_y_0")).alias("v_y"))
+
+# Existing delta calc
+exprs.append((col("future_x").getItem(9) - col("past_x_10")).alias("target_dx_1s"))
+exprs.append((col("future_y").getItem(9) - col("past_y_10")).alias("target_dy_1s"))
+
+for i in range(11):
+    exprs.append((col(f"past_x_{i}") - col("past_x_0")).alias(f"rel_x_{i}"))
+    exprs.append((col(f"past_y_{i}") - col("past_y_0")).alias(f"rel_y_{i}"))
+
+prep_df = test_df.select(*exprs)
+
+clean_df = prep_df.filter(
+    (col("target_dx_1s") >= -40) & (col("target_dx_1s") <= 40) &
+    (col("target_dy_1s") >= -40) & (col("target_dy_1s") <= 40)
+)
+
+feature_cols = (
+    [f"rel_x_{i}" for i in range(11)] + 
+    [f"rel_y_{i}" for i in range(11)] + 
+    ["v_x", "v_y"]
+)
+
+assembler = VectorAssembler(inputCols=feature_cols, outputCol="raw_features")
+
+scaler = StandardScaler(inputCol="raw_features", outputCol="scaled_features", 
+                        withStd=True, withMean=True)
+pipeline = Pipeline(stages=[assembler, scaler])
+ml_final = pipeline.fit(clean_df).transform(clean_df)
+ml_ready_df = ml_final.select("scenario_id", "track_id", "scaled_features", "target_dx_1s", "target_dy_1s")
+```
+
+The dataset was split into 80% training data and 20% evaluation data. Two separate XGBoost regressors were trained: one for x-displacement prediction and one for y-displacement prediction. Outlier filtering was applied before training by removing trajectories with future displacements outside ±40 meters.
+
+```python
+train_df, eval_df = ml_ready_df.randomSplit([0.8, 0.2], seed=42)
+
 # Train X coordinate
 xgb_x = SparkXGBRegressor(
     features_col="scaled_features", 
@@ -292,8 +321,7 @@ Additionally, the deeper model improved evaluation performance rather than only 
 Overall, the tuned XGBoost model showed strong performance in predicting short-term vehicle trajectories, achieving an average prediction error of less than 1 meter on the evaluation dataset.
 
 ### Model 2
-#### Model Fitting and Evaluation
-TODO
+
 
 ## Discussion
 
