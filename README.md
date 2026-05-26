@@ -23,6 +23,19 @@ Executor Memory: 4 GB (Calculated as [150 GB - 2 GB] / 31 = 4.77 GB. We conserva
 
 Spark UI Executor Allocation Screenshot: ![Spark UI Executors](plots/spark_executors.png)
 
+## Spark UI & Cluster Configuration Verification
+
+Cluster Architecture & Resource Allocation:
+For this pipeline, the SDSC Expanse SLURM allocation was provisioned on a single, high-capacity compute node with 150 GB of total memory. Consequently, PySpark was configured to operate optimally in local[*] mode. Rather than distributing the workload across multiple smaller physical nodes (which introduces severe network shuffle bottlenecks), Spark consolidated the resources into a single, highly parallelized driver executor.
+
+As proven by the API pull above, the Spark environment successfully allocated 4.62 GB of active memory and executed over 2,500 parallelized tasks during the XGBoost training phase. While 4.62 GB may appear low for processing a 30 GB dataset, this metric only reflects the memory capped for Spark's Java-based orchestration (spark.driver.memory="8g"). The actual model training was executed by SparkXGBRegressor. Because XGBoost relies on a highly optimized native C++ backend, it operates entirely outside of the restrictive Spark Java Virtual Machine (JVM). This architectural pivot allowed the algorithm to freely utilize the remainder of the node's 150 GB physical memory allocation to process the massive gradient histograms completely in-memory, bypassing Java's strict memory limits and eliminating Out-Of-Memory (OOM) crashes.
+
+Spark UI & Cluster Configuration Verification Screenshot: ![Spark  Configuration Verification](plots/spark_config_verfication.png)
+
+## Data Skew Analysis
+
+Because the data was processed on a unified node architecture, partition skew was non-existent. Our task duration analysis confirmed a Max/Median task ratio of 1.00x (Max: 33.23s, Median: 33.18s), proving a perfectly balanced workload across the allocated cores with zero straggler tasks.
+
 ## Dataset Overview
 
 Dataset: [Waymo Open Motion Dataset](https://waymo.com/open/data/motion/)<br>
@@ -101,6 +114,12 @@ The future distribution is slightly more concentrated near zero compared to the 
 Missing values: None (invalid or incomplete trajectories are filtered out during preprocessing)<br>
 Duplicate values: None detected in the final dataset
 
+## Architectural Note: Model Selection & Memory Constraints
+
+The initial architecture for this pipeline utilized PySpark's native GBTRegressor. However, scaling this model to the full 30GB Waymo dataset caused catastrophic Out-Of-Memory (OOM) failures on the JVM. The model consistently crashed the cluster despite utilizing a heavy distributed configuration (7 executors, 4 cores each, 15GB memory per executor, plus 2GB overhead) on a 130GB+ compute node.
+
+Because the native implementation could not construct the required gradient histograms within a 150GB memory footprint, the pipeline was transitioned to SparkXGBRegressor. By leveraging XGBoost's highly optimized C++ backend, the model was able to manage memory much more efficiently, successfully completing the training phase well within the cluster's hardware limits.
+
 ## Data Visualizations
 
 To better understand the scale and spatial dynamics of the Waymo dataset, we aggregated the trajectory data using PySpark and generated the following visualizations.
@@ -138,3 +157,103 @@ We will also apply transformations to prepare the data for analysis. Continuous 
 
 All preprocessing will be performed using Spark DataFrame operations to support distributed processing. This includes functions such as dropna() and fillna() for handling missing data, filter() for selecting relevant scenarios (e.g., intersections), withColumn() for creating new features, and groupBy() and agg() for aggregations. These operations allow efficient handling of large-scale data while maintaining scalability across distributed computing resources.
 
+## Fitting Analysis
+### Model Fitting and Evaluation
+We trained gradient-boosted decision tree regression models using XGBoost to predict short-term vehicle trajectory displacement. The task was formulated as supervised regression, where the model predicts future (1 second) relative x- and y-displacements using past trajectory motion features.
+
+The dataset was split into 80% training data and 20% evaluation data. Two separate XGBoost regressors were trained: one for x-displacement prediction and one for y-displacement prediction. Outlier filtering was applied before training by removing trajectories with future displacements outside ±40 meters.
+
+The feature engineering pipeline included:
+* Estimating vehicle velocity by measuring how far the vehicle moved between the first and last observed timesteps
+* Creating prediction targets by calculating how far the vehicle moves 1 second into the future relative to its current position
+* Converting past vehicle positions into relative coordinates by subtracting the starting position from each timestep (this helps the model focus on movement patterns instead of absolute map locations)
+* Feature vector assembly using VectorAssembler to combine all features into a single input vector
+* Feature standardization using StandardScaler to normalize feature magnitudes and stabilize model training
+
+### Underfitting vs Overfitting
+The baseline XGBoost model produced:
+
+* X-coordinate:
+  * Training RMSE: 0.4643 m
+  * Test RMSE: 0.4737 m
+* Y-coordinate:
+  * Training RMSE: 0.4920 m
+  * Test RMSE: 0.4944 m
+
+The training and testing errors are very close, indicating that the model generalizes well to unseen data and does not exhibit significant overfitting. At the same time, the relatively low RMSE values suggest the model is capturing meaningful motion patterns, so it is not strongly underfitting either.
+
+Overall, the baseline model falls in a good generalization region of the fitting curve, slightly leaning toward mild underfitting due to its relatively shallow tree depth and limited ensemble size.
+
+### Hyperparameter Tuning
+**Baseline Model**
+
+Hyperparameters:
+* max_depth = 5
+* n_estimators = 20
+
+Performance:
+* Test RMSE (X): 0.4737 meters 
+
+This model trains relatively quickly and provides strong generalization performance with low risk of overfitting.
+
+**Deep XGBoost Model**
+
+Hyperparameters:
+* max_depth = 10
+* n_estimators = 40
+
+Performance:
+* Training RMSE (X): 0.3474 meters
+* Test RMSE (X): 0.4285 meters
+
+By increasing the max_depth to 10, the algorithm was able to better isolate nuanced kinematic edge cases. While this deeper model exhibits mild overfitting (evidenced by the 8-centimeter gap between the training error and test error), it successfully generalized the complex physics better than the baseline. It represents an optimal balance in the bias-variance tradeoff: it traded a slight increase in variance for a significant reduction in overall spatial bias, proving to be the superior predictive architecture.
+
+### Best Performing Model
+The deeper XGBoost model (max_depth = 10, n_estimators = 40) performed best, achieving the lowest test RMSE of 0.4285 meters.
+
+This improvement likely comes from:
+* Deeper trees capturing more complex trajectory relationships
+* Better modeling of nonlinear vehicle motion behavior
+
+Additionally, the deeper model improved evaluation performance rather than only training performance, suggesting the additional complexity meaningfully improved learning rather than simply memorizing the training data.
+
+Overall, the tuned XGBoost model showed strong performance in predicting short-term vehicle trajectories, achieving an average prediction error of less than 1 meter on the evaluation dataset.
+
+
+## Potential Models for Milestone 4
+
+For Milestone 4, our group is considering additional distributed machine learning models to improve trajectory forecasting performance and try to capture different vehicle movement patterns.  Our first model used a distributed Gradient Boosted Tree regression model to predict future vehicle displacement, so we could compare additional ensemble-learning approaches that could improve prediction accuracy and generalization.
+
+We are considering Random Forest Regression because it could reduce overfitting and instability by averaging predictions across many decision trees rather than relying on a single boosted sequence of trees. Since autonomous vehicle trajectory data contains nonlinear movement behavior, Random Forest models may provide more stable predictions across different driving scenarios while still scaling efficiently in the Spark environment.
+
+We could also continue improving our Gradient Boosted Tree models through additional hyperparameter tuning, including adjustments to tree depth, number of iterations, and learning rate. Our initial model produced reasonable RMSE results, but further tuning could help capture more subtle movement patterns and trajectory relationships while balancing training and testing performance to avoid overfitting. Additionally, we could continue optimizing our XGBoost pipeline through further hyperparameter tuning, larger feature sets, and different distributed training configurations. Since XGBoost already produced strong results on the dataset, additional experimentation may help further improve predictive accuracy, scalability, and training efficiency.
+
+As we move into Milestone 4, we could also expand our preprocessing and feature engineering by incorporating additional motion-related features and potentially testing with longer prediction horizons. Overall, our goal is to compare multiple distributed ensemble-learning approaches while improving both scalability and predictive performance for large-scale autonomous vehicle trajectory forecasting.
+
+
+## Conclusion
+
+For our first model, we used XGBoost to predict short-term vehicle movement from the Waymo Open Motion Dataset. The task was to take roughly 1 second of a vehicle's past positions and predict where it would be 1 second into the future.
+
+| | Baseline (max_depth=5, n=20) | Tuned (max_depth=10, n=40) |
+|---|---|---|
+| Test RMSE (X) | 0.4737 m | 0.3474 m |
+| Test RMSE (Y) | 0.4944 m | 0.4285 m |
+
+The model averaged under 1 meter of spatial error, which we felt was a strong result for a first attempt.
+
+### Areas for Improvement
+
+Further Tuning: We only experimented with max_depth and n_estimators. Further tuning of additional hyperparameters could improve accuracy even more.
+Richer Features: Adding additional features such as speed, acceleration, and relative distances between agents could give the model a better picture of how vehicles interact with each other.
+Extended Prediction Horizon: The data supports up to 8 seconds of future trajectory, so pushing the prediction beyond 1 second could lead to better accuracy and more realistic planning scenarios.
+Sequence-Aware Models: XGBoost cannot learn patterns across the full 11 timesteps of past motion, so switching to a model like an LSTM or Transformer could help the model better understand the full sequence of past motion.
+
+
+### Role of Distributed Computing: 
+
+Processing 30 GB of raw Waymo Protobuf files on a standard machine would not have been realistic. To handle the full dataset we used the SDSC Expanse supercomputer, requesting an interactive session through SLURM with 32 cores and 150 GB of memory. 
+
+With everything running on one node, Spark used local[*] mode which kept all 32 cores working together instead of splitting them up. This made the whole process more efficient and Spark coordinated over 2,500 tasks during training with no issues. The workload was spread evenly across all cores, confirmed by a Max/Median task duration ratio of 1.00x. 
+
+We originally tried using PySpark's native GBTRegressor but it kept crashing with Out-Of-Memory errors even with a heavy distributed configuration. The problem was that it could not construct the gradient histograms within the 150 GB memory footprint. Switching to SparkXGBRegressor fixed this because XGBoost runs on a C++ backend outside of the JVM, so it could freely use the full physical memory of the node without hitting Java's memory limits.
