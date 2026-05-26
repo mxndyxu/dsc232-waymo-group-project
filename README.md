@@ -24,7 +24,6 @@ Executor Memory: 4 GB (Calculated as [150 GB - 2 GB] / 31 = 4.77 GB. We conserva
 Spark UI Executor Allocation Screenshot: ![Spark UI Executors](plots/spark_executors.png)
 
 ## Spark UI & Cluster Configuration Verification
-
 Cluster Architecture & Resource Allocation:
 For this pipeline, the SDSC Expanse SLURM allocation was provisioned on a single, high-capacity compute node with 150 GB of total memory. Consequently, PySpark was configured to operate optimally in local[*] mode. Rather than distributing the workload across multiple smaller physical nodes (which introduces severe network shuffle bottlenecks), Spark consolidated the resources into a single, highly parallelized driver executor.
 
@@ -32,19 +31,56 @@ As proven by the API pull above, the Spark environment successfully allocated 4.
 
 Spark UI & Cluster Configuration Verification Screenshot: ![Spark  Configuration Verification](plots/spark_config_verfication.png)
 
-## Data Skew Analysis
+## Introduction
+Autonomous driving is one of the most important applications of machine learning because it requires systems to make accurate, real-time decisions in dynamic environments. This project was chosen because short-term vehicle motion prediction is a core component of autonomous driving systems, especially at intersections where traffic behavior is more complex and unpredictable. Intersections involve multiple interacting vehicles, turns, stops, and right-of-way decisions, making them one of the most safety-critical driving environments.
 
-Because the data was processed on a unified node architecture, partition skew was non-existent. Our task duration analysis confirmed a Max/Median task ratio of 1.00x (Max: 33.23s, Median: 33.18s), proving a perfectly balanced workload across the allocated cores with zero straggler tasks.
+This problem is interesting because it combines time-series prediction, spatial reasoning, and large-scale data processing. The goal of the project was to predict a vehicle’s position 1 second into the future using its recent motion history. Accurate short-term motion prediction can help autonomous vehicles better anticipate surrounding traffic behavior, improving navigation, collision avoidance, and overall driving safety. 
 
-## Dataset Overview
+This project also demonstrates the importance of big data and distributed computing in modern machine learning workflows. The Waymo Open Motion Dataset contains hundreds of gigabytes of real-world driving data with high-frequency trajectory information. Even after limiting the project to a smaller subset of intersection scenarios, the processed dataset still ranged from approximately 20–50GB.
 
+Apache Spark was necessary to efficiently process and analyze the data at scale. Operations such as feature engineering, computing large-scale statistics, and training machine learning models on millions of observations would have been impractical on a standard laptop due to memory and computation limitations. Spark enabled distributed data processing and scalable model training, making the project computationally feasible.
+
+## Figures
+#### 1. Top 10 Busiest Intersections
+![Top 10 Busiest Intersections](plots/Bar_Plot.png)
+
+**Description & Insights:**
+This bar chart displays the specific `scenario_id` values that contain the highest volume of tracked agents. As shown, the busiest intersection contains over 210 simultaneously tracked vehicles. By isolating these high-density scenes, we can assess the computational load and interaction complexity our forecasting model will need to handle compared to quieter environments. 
+
+#### 2. Intersection Density
+![Intersection Density](plots/Histogram.png)
+
+**Description & Insights:**
+This histogram plots the frequency distribution of vehicle counts per 9.1-second scenario. The data exhibits a strong right-skewed distribution. While the vast majority of the 29,411 scenarios contain fewer than 50 vehicles, there is a long tail of highly congested scenes extending past 200 vehicles. Understanding this density distribution is crucial for our preprocessing plan, ensuring we account for data imbalance between sparse and highly congested traffic patterns.
+
+#### 3. Detailed Vehicle Trajectory
+![Detailed Vehicle Trajectory](plots/Scatterplot.png)
+
+**Description & Insights:**
+This spatial scatter plot maps the local $X$ and $Y$ coordinates (in meters) of a single tracked vehicle over a full 9.1-second window. 
+* **Green Star:** The vehicle's initial starting position.
+* **Blue Line (Past):** The 1.1-second historical trajectory used as the input features ($X$).
+* **Red Line (Future):** The 8.0-second future trajectory used as the ground-truth target labels ($y$).
+
+This visualization perfectly illustrates the Sequence-to-Sequence nature of our modeling task, showing the exact spatial progression the algorithm must learn to predict based on the initial motion vectors.
+
+## Methods
+### Dataset Overview
 Dataset: [Waymo Open Motion Dataset](https://waymo.com/open/data/motion/)<br>
 Number of observations: 832,346
 
 Each observation corresponds to a single tracked vehicle trajectory extracted from raw scenario protobuf files after filtering and preprocessing.
 
-## Data
+### Data Exploration
+The dataset used in this project was the Waymo Open Motion Dataset, a large-scale autonomous driving dataset containing real-world vehicle motion data. After filtering and preprocessing, the final dataset contained 832,346 observations, where each observation represented a single tracked vehicle trajectory within a driving scenario.
 
+The dataset included both categorical identifiers and continuous spatial trajectory data. scenario_id represented a unique driving scene, while track_id identified a specific vehicle within that scenario. Aggregating by scenario_id showed that the dataset contained 29,411 unique scenarios with an average of 28.3 vehicles per scene. The distribution was moderately right-skewed, with some dense traffic scenes containing up to 218 vehicles. Aggregating by track_id produced a highly right-skewed distribution, where most identifiers appeared relatively infrequently while a small subset appeared many times due to identifier reuse across independent scenarios.
+
+The continuous variables consisted of sequences of x- and y-coordinate positions representing vehicle motion over time. past_x and past_y contained 11 observed timesteps (~1 second of history at 10 Hz), while future_x and future_y contained 80 future timesteps (~8 seconds). The future trajectory coordinates served as the target variables for prediction.
+
+To analyze the spatial distributions, the trajectory arrays were flattened into individual coordinate points. Both past and future coordinate distributions exhibited high variance and heavy tails due to aggregation across many independent driving scenarios with different local coordinate frames. Although the global means were not centered near zero, the median and lower quantiles were substantially closer to zero, indicating skewed distributions with extreme spatial outliers. Most vehicle motion remained concentrated within a few thousand meters, while a smaller number of trajectories extended much farther.
+
+### Data
 #### **scenario_id (string, categorical)**<br>
 A unique identifier for a driving scenario (scene). Each scenario contains multiple agents (vehicles) and represents a short driving clip.<br>
 Scale: Nominal -- identifier, no numerical meaning<br>
@@ -109,56 +145,31 @@ Distribution: Similar methodology to past data.
 
 The future distribution is slightly more concentrated near zero compared to the past, reflecting that many trajectories remain within local regions over short prediction horizons. However, it still exhibits heavy tails and high variance due to aggregation across diverse driving scenarios.
 
-## Missing and Duplicate Values
+### Data Skew Analysis
+Because the data was processed on a unified node architecture, partition skew was non-existent. Our task duration analysis confirmed a Max/Median task ratio of 1.00x (Max: 33.23s, Median: 33.18s), proving a perfectly balanced workload across the allocated cores with zero straggler tasks.
 
-Missing values: None (invalid or incomplete trajectories are filtered out during preprocessing)<br>
-Duplicate values: None detected in the final dataset
+### Preprocessing
+The raw Waymo scenario files were stored as protobuf records containing object tracks and timestep-based state information. During preprocessing, the dataset was filtered to intersection-based scenarios by selecting only scenes containing dynamic traffic light states. Vehicle tracks were then extracted by selecting objects with object_type == 1 and requiring complete 91-frame trajectories.
 
-## Architectural Note: Model Selection & Memory Constraints
+Each trajectory was divided into 11 past timesteps representing approximately 1 second of observed motion and 80 future timesteps representing approximately 8 seconds of future motion. Only trajectories with fully valid historical states were retained. Invalid or incomplete trajectories were removed during preprocessing, resulting in no missing values or duplicate rows present in the final dataset.
 
+Additional feature engineering steps were performed to prepare the data for machine learning:
+
+Relative trajectory coordinates (rel_x_i, rel_y_i) were computed by subtracting the initial vehicle position from each timestep so the model could learn motion patterns independent of absolute map position.
+Approximate velocity features (v_x, v_y) were computed using displacement over the observed history window.
+Target variables (target_dx_1s, target_dy_1s) were generated by calculating future displacement 1 second ahead relative to the current vehicle position.
+Feature vectors were assembled using VectorAssembler.
+Features were standardized using StandardScaler to normalize feature magnitudes before training.
+
+Outlier filtering was also applied by removing trajectories with future displacement values outside ±40 meters in either direction. This reduced the impact of extreme or unrealistic motion samples during model training.
+
+### Model 1: XGBoost Regression
+#### Architectural Note: Model Selection & Memory Constraints
 The initial architecture for this pipeline utilized PySpark's native GBTRegressor. However, scaling this model to the full 30GB Waymo dataset caused catastrophic Out-Of-Memory (OOM) failures on the JVM. The model consistently crashed the cluster despite utilizing a heavy distributed configuration (7 executors, 4 cores each, 15GB memory per executor, plus 2GB overhead) on a 130GB+ compute node.
 
 Because the native implementation could not construct the required gradient histograms within a 150GB memory footprint, the pipeline was transitioned to SparkXGBRegressor. By leveraging XGBoost's highly optimized C++ backend, the model was able to manage memory much more efficiently, successfully completing the training phase well within the cluster's hardware limits.
 
-## Data Visualizations
-
-To better understand the scale and spatial dynamics of the Waymo dataset, we aggregated the trajectory data using PySpark and generated the following visualizations.
-
-#### 1. Top 10 Busiest Intersections
-![Top 10 Busiest Intersections](plots/Bar_Plot.png)
-
-**Description & Insights:**
-This bar chart displays the specific `scenario_id` values that contain the highest volume of tracked agents. As shown, the busiest intersection contains over 210 simultaneously tracked vehicles. By isolating these high-density scenes, we can assess the computational load and interaction complexity our forecasting model will need to handle compared to quieter environments. 
-
-#### 2. Intersection Density
-![Intersection Density](plots/Histogram.png)
-
-**Description & Insights:**
-This histogram plots the frequency distribution of vehicle counts per 9.1-second scenario. The data exhibits a strong right-skewed distribution. While the vast majority of the 29,411 scenarios contain fewer than 50 vehicles, there is a long tail of highly congested scenes extending past 200 vehicles. Understanding this density distribution is crucial for our preprocessing plan, ensuring we account for data imbalance between sparse and highly congested traffic patterns.
-
-#### 3. Detailed Vehicle Trajectory
-![Detailed Vehicle Trajectory](plots/Scatterplot.png)
-
-**Description & Insights:**
-This spatial scatter plot maps the local $X$ and $Y$ coordinates (in meters) of a single tracked vehicle over a full 9.1-second window. 
-* **Green Star:** The vehicle's initial starting position.
-* **Blue Line (Past):** The 1.1-second historical trajectory used as the input features ($X$).
-* **Red Line (Future):** The 8.0-second future trajectory used as the ground-truth target labels ($y$).
-
-This visualization perfectly illustrates the Sequence-to-Sequence nature of our modeling task, showing the exact spatial progression the algorithm must learn to predict based on the initial motion vectors.
-
-## Preprocessing Plan
-
-To prepare the Waymo Open Motion Dataset for analysis, we’ll apply several preprocessing steps to ensure data quality and consistency. For missing values, we will first assess their presence across trajectory features such as position and velocity. If missing values are minimal, we’ll remove those records using Spark’s dropna() function. If needed, we’ll apply imputation strategies such as forward-filling or replacing with mean values where appropriate.
-
-To address potential data imbalance, specifically if certain driving behaviors (e.g., straight driving vs. turning at intersections) are overrepresented, we’ll evaluate the distribution of target behaviors. If imbalance is present, we may apply sampling techniques such as undersampling dominant classes or oversampling underrepresented scenarios to improve model performance.
-
-We will also apply transformations to prepare the data for analysis. Continuous variables such as position and velocity will be scaled or normalized to ensure consistency across features. Categorical variables, such as object type, will be transformed into numerical indicator variables (binary columns) to support analysis. Additionally, we could perform feature engineering to create new variables such as speed, acceleration, and relative distances between agents to better capture interaction dynamics.
-
-All preprocessing will be performed using Spark DataFrame operations to support distributed processing. This includes functions such as dropna() and fillna() for handling missing data, filter() for selecting relevant scenarios (e.g., intersections), withColumn() for creating new features, and groupBy() and agg() for aggregations. These operations allow efficient handling of large-scale data while maintaining scalability across distributed computing resources.
-
-## Fitting Analysis
-### Model Fitting and Evaluation
+#### Model Fitting and Evaluation
 We trained gradient-boosted decision tree regression models using XGBoost to predict short-term vehicle trajectory displacement. The task was formulated as supervised regression, where the model predicts future (1 second) relative x- and y-displacements using past trajectory motion features.
 
 The dataset was split into 80% training data and 20% evaluation data. Two separate XGBoost regressors were trained: one for x-displacement prediction and one for y-displacement prediction. Outlier filtering was applied before training by removing trajectories with future displacements outside ±40 meters.
@@ -170,7 +181,6 @@ The feature engineering pipeline included:
 * Feature vector assembly using VectorAssembler to combine all features into a single input vector
 * Feature standardization using StandardScaler to normalize feature magnitudes and stabilize model training
 
-### Underfitting vs Overfitting
 The baseline XGBoost model produced:
 
 * X-coordinate:
@@ -184,7 +194,7 @@ The training and testing errors are very close, indicating that the model genera
 
 Overall, the baseline model falls in a good generalization region of the fitting curve, slightly leaning toward mild underfitting due to its relatively shallow tree depth and limited ensemble size.
 
-### Hyperparameter Tuning
+#### Hyperparameter Tuning
 **Baseline Model**
 
 Hyperparameters:
@@ -208,7 +218,7 @@ Performance:
 
 By increasing the max_depth to 10, the algorithm was able to better isolate nuanced kinematic edge cases. While this deeper model exhibits mild overfitting (evidenced by the 8-centimeter gap between the training error and test error), it successfully generalized the complex physics better than the baseline. It represents an optimal balance in the bias-variance tradeoff: it traded a slight increase in variance for a significant reduction in overall spatial bias, proving to be the superior predictive architecture.
 
-### Best Performing Model
+#### Best Performing Model
 The deeper XGBoost model (max_depth = 10, n_estimators = 40) performed best, achieving the lowest test RMSE of 0.4285 meters.
 
 This improvement likely comes from:
@@ -220,15 +230,7 @@ Additionally, the deeper model improved evaluation performance rather than only 
 Overall, the tuned XGBoost model showed strong performance in predicting short-term vehicle trajectories, achieving an average prediction error of less than 1 meter on the evaluation dataset.
 
 
-## Potential Models for Milestone 4
-
-For Milestone 4, our group is considering additional distributed machine learning models to improve trajectory forecasting performance and try to capture different vehicle movement patterns.  Our first model used a distributed Gradient Boosted Tree regression model to predict future vehicle displacement, so we could compare additional ensemble-learning approaches that could improve prediction accuracy and generalization.
-
-We are considering Random Forest Regression because it could reduce overfitting and instability by averaging predictions across many decision trees rather than relying on a single boosted sequence of trees. Since autonomous vehicle trajectory data contains nonlinear movement behavior, Random Forest models may provide more stable predictions across different driving scenarios while still scaling efficiently in the Spark environment.
-
-We could also continue improving our Gradient Boosted Tree models through additional hyperparameter tuning, including adjustments to tree depth, number of iterations, and learning rate. Our initial model produced reasonable RMSE results, but further tuning could help capture more subtle movement patterns and trajectory relationships while balancing training and testing performance to avoid overfitting. Additionally, we could continue optimizing our XGBoost pipeline through further hyperparameter tuning, larger feature sets, and different distributed training configurations. Since XGBoost already produced strong results on the dataset, additional experimentation may help further improve predictive accuracy, scalability, and training efficiency.
-
-As we move into Milestone 4, we could also expand our preprocessing and feature engineering by incorporating additional motion-related features and potentially testing with longer prediction horizons. Overall, our goal is to compare multiple distributed ensemble-learning approaches while improving both scalability and predictive performance for large-scale autonomous vehicle trajectory forecasting.
+### Model 2
 
 
 ## Conclusion
