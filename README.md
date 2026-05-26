@@ -293,7 +293,9 @@ Overall, the tuned XGBoost model showed strong performance in predicting short-t
 
 ### Model 2
 #### Model Fitting and Evaluation
+TODO
 
+## Discussion
 
 ## Conclusion
 
@@ -313,7 +315,6 @@ Richer Features: Adding additional features such as speed, acceleration, and rel
 Extended Prediction Horizon: The data supports up to 8 seconds of future trajectory, so pushing the prediction beyond 1 second could lead to better accuracy and more realistic planning scenarios.
 Sequence-Aware Models: XGBoost cannot learn patterns across the full 11 timesteps of past motion, so switching to a model like an LSTM or Transformer could help the model better understand the full sequence of past motion.
 
-
 ### Role of Distributed Computing: 
 
 Processing 30 GB of raw Waymo Protobuf files on a standard machine would not have been realistic. To handle the full dataset we used the SDSC Expanse supercomputer, requesting an interactive session through SLURM with 32 cores and 150 GB of memory. 
@@ -321,3 +322,9 @@ Processing 30 GB of raw Waymo Protobuf files on a standard machine would not hav
 With everything running on one node, Spark used local[*] mode which kept all 32 cores working together instead of splitting them up. This made the whole process more efficient and Spark coordinated over 2,500 tasks during training with no issues. The workload was spread evenly across all cores, confirmed by a Max/Median task duration ratio of 1.00x. 
 
 We originally tried using PySpark's native GBTRegressor but it kept crashing with Out-Of-Memory errors even with a heavy distributed configuration. The problem was that it could not construct the gradient histograms within the 150 GB memory footprint. Switching to SparkXGBRegressor fixed this because XGBoost runs on a C++ backend outside of the JVM, so it could freely use the full physical memory of the node without hitting Java's memory limits.
+
+## Statement of Collaboration
+Kristen Oleson -- TODO<br>
+Cory Ornelas -- TODO<br>
+Audrius Pasvenskas -- TODO<br>
+Mandy Xu -- TODO <br>
