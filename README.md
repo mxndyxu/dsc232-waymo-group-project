@@ -320,8 +320,72 @@ Additionally, the deeper model improved evaluation performance rather than only 
 
 Overall, the tuned XGBoost model showed strong performance in predicting short-term vehicle trajectories, achieving an average prediction error of less than 1 meter on the evaluation dataset.
 
-### Model 2
+### Model 2: PCA + XGBoost Regression
+The second model extended the XGBoost regression pipeline by incorporating Principal Component Analysis (PCA) for dimensionality reduction before model training. The goal of this approach was to reduce feature dimensionality, improve computational efficiency, and evaluate whether compressed trajectory representations could preserve predictive performance.
 
+The same engineered trajectory features from Model 1 were used as input. Instead of training directly on the full standardized feature space, PCA was applied to project the data into a lower-dimensional representation consisting of the top 5 principal components.
+
+```python
+pca = PCA(k=5, inputCol="scaled_features", outputCol="pca_features")
+
+pca_model = pca.fit(ml_ready_df)
+pca_df = pca_model.transform(ml_ready_df)
+```
+
+To evaluate how much information was preserved after dimensionality reduction, explained variance ratios were computed for each principal component.
+
+```python
+explained_var = pca_model.explainedVariance.toArray()
+cumulative_var = np.cumsum(explained_var)
+```
+
+The PCA results show that the first two principal components captured nearly all of the meaningful variation in the trajectory data.
+
+* PC1 explained 52.82% of the variance
+* PC2 explained 46.92% of the variance
+* PCs 3–5 contributed very little additional information
+
+Together, the five principal components retained 99.96% of the total variance from the original feature space. This means the reduced 5-dimensional representation preserved almost all important trajectory information while removing redundant or highly correlated features.
+
+After dimensionality reduction, the dataset was split into 80% training data and 20% evaluation data. An XGBoost regressor was then trained using the reduced PCA feature vectors.
+
+```python
+xgb_pca = SparkXGBRegressor(
+    features_col="pca_features",
+    label_col="target_dx_1s",
+    num_workers=7,
+    max_depth=10,
+    n_estimators=40,
+    use_gpu=False
+)
+xgb_model_pca = xgb_pca.fit(pca_train_df)
+```
+
+The PCA-based model achieved:
+
+* Training RMSE: 0.2786 meters
+* Test RMSE: 0.4053 meters
+
+Compared to the best full-feature XGBoost model from Model 1:
+
+* Full feature model test RMSE: 0.4285 meters
+* PCA model test RMSE: 0.4053 meters
+
+This represented an improvement of approximately 0.0232 meters in prediction accuracy.
+
+The results suggest that PCA successfully removed some noise and redundancy from the trajectory feature space while preserving the most informative motion patterns. Reducing dimensionality also simplified the learning problem, allowing the XGBoost model to generalize more effectively on unseen data.
+
+Because trajectory prediction is a continuous regression task rather than a discrete classification problem, traditional false positive and false negative metrics are not directly applicable. To better interpret prediction quality, a spatial safety threshold of 0.5 meters was introduced. Predictions within 0.5 meters of the ground-truth displacement were labeled as safe trajectory predictions, while predictions exceeding the threshold were categorized as overestimation or underestimation errors.
+
+The classification analysis produced the following results:
+
+* Correct Classification (Safe): 92.35%
+* False Negative (Underestimated Shift): 3.81%
+* False Positive (Overestimated Shift): 3.83%
+
+These results indicate that the PCA-enhanced model was able to predict short-term vehicle motion with high spatial accuracy, with the large majority of predictions remaining within the defined 0.5-meter safety tolerance.
+
+Potential future improvements include extending the prediction horizon beyond 1 second to model longer-term vehicle motion. More advanced sequence-based models such as LSTMs, GRUs, or Transformers could better capture temporal trajectory patterns than tree-based models. Additional improvements could include incorporating richer contextual information from the Waymo dataset.
 
 ## Discussion
 
