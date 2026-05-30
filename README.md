@@ -387,7 +387,18 @@ These results indicate that the PCA-enhanced model was able to predict short-ter
 
 Potential future improvements include extending the prediction horizon beyond 1 second to model longer-term vehicle motion. More advanced sequence-based models such as LSTMs, GRUs, or Transformers could better capture temporal trajectory patterns than tree-based models. Additional improvements could include incorporating richer contextual information from the Waymo dataset.
 
-## Discussion
+### Discussion
+This project showed that short-term vehicle trajectory forecasting can be performed effectively using distributed machine learning, but the results should be interpreted carefully. We predicted that the Waymo dataset would be challenging because vehicle movement is influenced by many factors, including speed, direction, traffic conditions, intersections, and the behavior of other vehicles. To keep the problem manageable, we focused on predicting a vehicle’s position 1 second into the future using its recent motion history.
+
+One of the biggest takeaways was the importance of preprocessing and feature engineering. By converting trajectories into relative movement features instead of using absolute coordinates, the model focused on motion patterns rather than specific map locations. Unfortunately, the model still lacks some important contextual information such as lane geometry, traffic signals, and interactions with nearby vehicles.
+
+The XGBoost model produced strong results, with prediction errors under 1 meter. While that is encouraging, these results should be viewed in the context of a relatively short 1-second prediction horizon. Vehicle movement is generally more predictable over short time periods, so performance may decrease when forecasting farther into the future.
+
+The PCA + XGBoost model performed slightly better than the original XGBoost model. This suggests that PCA successfully removed some redundant information while preserving the most important trajectory patterns. However, PCA focuses on maximizing variance rather than capturing the most meaningful driving behaviors, so some important edge cases may be lost in the reduced feature space.
+
+A key limitation of our approach is that the model relies primarily on the target vehicle’s motion history and does not fully incorporate surrounding vehicles, pedestrians, traffic signals, or road geometry. Because of this, our model should be viewed as a baseline trajectory forecasting model rather than a complete autonomous driving prediction system.
+
+Overall, we believe the results are reasonable. The training and testing errors were relatively close, indicating good generalization, and the PCA model provided modest improvement. Future work could explore longer prediction horizons, additional contextual features, and sequence-based models such as LSTMs or Transformers to better capture vehicle behavior over time.
 
 ## Conclusion
 
@@ -414,6 +425,15 @@ Processing 30 GB of raw Waymo Protobuf files on a standard machine would not hav
 With everything running on one node, Spark used local[*] mode which kept all 32 cores working together instead of splitting them up. This made the whole process more efficient and Spark coordinated over 2,500 tasks during training with no issues. The workload was spread evenly across all cores, confirmed by a Max/Median task duration ratio of 1.00x. 
 
 We originally tried using PySpark's native GBTRegressor but it kept crashing with Out-Of-Memory errors even with a heavy distributed configuration. The problem was that it could not construct the gradient histograms within the 150 GB memory footprint. Switching to SparkXGBRegressor fixed this because XGBoost runs on a C++ backend outside of the JVM, so it could freely use the full physical memory of the node without hitting Java's memory limits.
+
+### Final Conclusion
+This project was a valuable experience working with a real-world autonomous driving dataset at a scale that required distributed computing. Beyond building predictive models, one of the biggest lessons was understanding how data processing, feature engineering, and computational constraints influence the overall machine learning workflow.
+
+Working with Spark and SDSC Expanse changed the way we approached the project. Rather than focusing only on model selection, we had to consider scalability, memory usage, and the practical challenges of processing tens of gigabytes of trajectory data. In several cases, computational limitations influenced our decisions just as much as predictive performance.
+
+The project also demonstrated the importance of distributed computing for modern machine learning. Tasks that were impossible to perform on a standard machine were manageable through parallel processing and distributed model training. This allowed us to focus on analyzing the data and improving the models rather than being constrained by hardware limitations.
+
+Given additional time and resources, we would explore larger portions of the Waymo dataset, longer prediction horizons, and more advanced sequence-based approaches that are specifically designed for trajectory forecasting. Overall, we realized that successful machine learning is not only about building accurate models, it’s also about developing scalable solutions.
 
 ## Statement of Collaboration
 Kristen Oleson -- TODO<br>
