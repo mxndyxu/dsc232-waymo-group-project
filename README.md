@@ -412,8 +412,8 @@ For our first model, we used XGBoost to predict short-term vehicle movement from
 
 | | Baseline (max_depth=5, n=20) | Tuned (max_depth=10, n=40) |
 |---|---|---|
-| Test RMSE (X) | 0.4737 m | 0.3474 m |
-| Test RMSE (Y) | 0.4944 m | 0.4285 m |
+| Training RMSE | 0.4737 m | 0.3474 m |
+| Test RMSE  | 0.4944 m | 0.4285 m |
 
 The model averaged under 1 meter of spatial error, which we felt was a strong result for a first attempt.
 
