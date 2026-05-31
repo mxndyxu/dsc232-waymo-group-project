@@ -373,6 +373,12 @@ Compared to the best full-feature XGBoost model from Model 1:
 
 This represented an improvement of approximately 0.0232 meters in prediction accuracy.
 
+To put those numbers in context, it helps to look at what the train and test errors together say about how the model fit the data. The PCA-enhanced XGBoost model sits close to the optimal point with mild overfitting present. The training RMSE came in at 0.2786 meters while the test RMSE was 0.4053 meters. Although the training error is lower than the testing error, the gap is small enough that the model is not severely overfitting the training data.
+
+The model showed no signs of underfitting, with prediction error staying low across both training and test data. The small train-test gap also points to dimensionality reduction doing its job, cutting out noise and redundant features so the model could hold up better on new data.
+
+Overall, dimensionality reduction had a clear positive impact on model performance. By reducing the feature space to just five principal components, PCA was still able to retain 99.96% of the original variance. With a cleaner feature space, the model was able to focus on the most meaningful patterns in the data, bringing test RMSE down from 0.4285 meters on the full-feature model to 0.4053 meters. The model strikes a reasonable balance between complexity and generalization, learning real trajectory patterns without fitting so closely to the training data that test performance is impacted.
+
 The results suggest that PCA successfully removed some noise and redundancy from the trajectory feature space while preserving the most informative motion patterns. Reducing dimensionality also simplified the learning problem, allowing the XGBoost model to generalize more effectively on unseen data.
 
 Because trajectory prediction is a continuous regression task rather than a discrete classification problem, traditional false positive and false negative metrics are not directly applicable. To better interpret prediction quality, a spatial safety threshold of 0.5 meters was introduced. Predictions within 0.5 meters of the ground-truth displacement were labeled as safe trajectory predictions, while predictions exceeding the threshold were categorized as overestimation or underestimation errors.
