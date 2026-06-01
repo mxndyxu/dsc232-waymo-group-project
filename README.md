@@ -446,7 +446,7 @@ The project also demonstrated the importance of distributed computing for modern
 Given additional time and resources, we would explore larger portions of the Waymo dataset, longer prediction horizons, and more advanced sequence-based approaches that are specifically designed for trajectory forecasting. Overall, we realized that successful machine learning is not only about building accurate models, it’s also about developing scalable solutions.
 
 ## Statement of Collaboration
-Kristen Oleson -- TODO<br>
+Kristen Oleson -- worked on the write-up and provided feedback for all milestones and attended all meetings <br>
 Cory Ornelas -- worked on the write-up and provided feedback during all milestones and attended all meetings<br>
 Audrius Pasvenskas -- wrote the code, attended the meetings, and provided the feedback on the write-ups.<br>
 Mandy Xu -- attended all meetings, worked on write-ups for all milestones, and provided feedback<br>
