@@ -254,19 +254,6 @@ pred_train_y = xgb_model_y.transform(train_df)
 rmse_train_y = evaluator_y.evaluate(pred_train_y)
 ```
 
-The baseline XGBoost model produced:
-
-* X-coordinate:
-  * Training RMSE: 0.4643 m
-  * Test RMSE: 0.4737 m
-* Y-coordinate:
-  * Training RMSE: 0.4920 m
-  * Test RMSE: 0.4944 m
-
-The training and testing errors are very close, indicating that the model generalizes well to unseen data and does not exhibit significant overfitting. At the same time, the relatively low RMSE values suggest the model is capturing meaningful motion patterns, so it is not strongly underfitting either.
-
-Overall, the baseline model falls in a good generalization region of the fitting curve, slightly leaning toward mild underfitting due to its relatively shallow tree depth and limited ensemble size.
-
 #### Hyperparameter Tuning
 **Baseline Model**
 
@@ -285,10 +272,6 @@ Hyperparameters:
 * max_depth = 10
 * n_estimators = 40
 
-Performance:
-* Training RMSE (X): 0.3474 meters
-* Test RMSE (X): 0.4285 meters
-
 ```python
 # Create and train deep XGBoost model
 xgb_deep = SparkXGBRegressor(
@@ -306,19 +289,6 @@ pred_deep_x = xgb_model_deep.transform(eval_df)
 evaluator_deep = RegressionEvaluator(labelCol="target_dx_1s", predictionCol="prediction", metricName="rmse")
 rmse_deep_x = evaluator_deep.evaluate(pred_deep_x)
 ```
-
-By increasing the max_depth to 10, the algorithm was able to better isolate nuanced kinematic edge cases. While this deeper model exhibits mild overfitting (evidenced by the 8-centimeter gap between the training error and test error), it successfully generalized the complex physics better than the baseline. It represents an optimal balance in the bias-variance tradeoff: it traded a slight increase in variance for a significant reduction in overall spatial bias, proving to be the superior predictive architecture.
-
-#### Best Performing Model
-The deeper XGBoost model (max_depth = 10, n_estimators = 40) performed best, achieving the lowest test RMSE of 0.4285 meters.
-
-This improvement likely comes from:
-* Deeper trees capturing more complex trajectory relationships
-* Better modeling of nonlinear vehicle motion behavior
-
-Additionally, the deeper model improved evaluation performance rather than only training performance, suggesting the additional complexity meaningfully improved learning rather than simply memorizing the training data.
-
-Overall, the tuned XGBoost model showed strong performance in predicting short-term vehicle trajectories, achieving an average prediction error of less than 1 meter on the evaluation dataset.
 
 ### Model 2: PCA + XGBoost Regression
 The second model extended the XGBoost regression pipeline by incorporating Principal Component Analysis (PCA) for dimensionality reduction before model training. The goal of this approach was to reduce feature dimensionality, improve computational efficiency, and evaluate whether compressed trajectory representations could preserve predictive performance.
@@ -361,6 +331,40 @@ xgb_pca = SparkXGBRegressor(
 xgb_model_pca = xgb_pca.fit(pca_train_df)
 ```
 
+## Results
+### Model 1
+The baseline XGBoost model produced:
+
+* X-coordinate:
+  * Training RMSE: 0.4643 m
+  * Test RMSE: 0.4737 m
+* Y-coordinate:
+  * Training RMSE: 0.4920 m
+  * Test RMSE: 0.4944 m
+
+The training and testing errors are very close, indicating that the model generalizes well to unseen data and does not exhibit significant overfitting. At the same time, the relatively low RMSE values suggest the model is capturing meaningful motion patterns, so it is not strongly underfitting either.
+
+Overall, the baseline model falls in a good generalization region of the fitting curve, slightly leaning toward mild underfitting due to its relatively shallow tree depth and limited ensemble size.
+
+Additionally, we tuned the `max_depth` and `n_estimators` hyperparameters on the baseline model. The training and test RMSEs are shown below.
+
+Performance:
+* Training RMSE (X): 0.3474 meters
+* Test RMSE (X): 0.4285 meters
+
+By increasing the max_depth to 10, the algorithm was able to better isolate nuanced kinematic edge cases. While this deeper model exhibits mild overfitting (evidenced by the 8-centimeter gap between the training error and test error), it successfully generalized the complex physics better than the baseline. It represents an optimal balance in the bias-variance tradeoff: it traded a slight increase in variance for a significant reduction in overall spatial bias, proving to be the superior predictive architecture.
+
+The deeper XGBoost model (max_depth = 10, n_estimators = 40) performed best, achieving the lowest test RMSE of 0.4285 meters.
+
+This improvement likely comes from:
+* Deeper trees capturing more complex trajectory relationships
+* Better modeling of nonlinear vehicle motion behavior
+
+Additionally, the deeper model improved evaluation performance rather than only training performance, suggesting the additional complexity meaningfully improved learning rather than simply memorizing the training data.
+
+Overall, the tuned XGBoost model showed strong performance in predicting short-term vehicle trajectories, achieving an average prediction error of less than 1 meter on the evaluation dataset.
+
+### Model 2
 The PCA-based model achieved:
 
 * Training RMSE: 0.2786 meters
@@ -393,7 +397,7 @@ These results indicate that the PCA-enhanced model was able to predict short-ter
 
 Potential future improvements include extending the prediction horizon beyond 1 second to model longer-term vehicle motion. More advanced sequence-based models such as LSTMs, GRUs, or Transformers could better capture temporal trajectory patterns than tree-based models. Additional improvements could include incorporating richer contextual information from the Waymo dataset.
 
-### Discussion
+## Discussion
 This project showed that short-term vehicle trajectory forecasting can be performed effectively using distributed machine learning, but the results should be interpreted carefully. We predicted that the Waymo dataset would be challenging because vehicle movement is influenced by many factors, including speed, direction, traffic conditions, intersections, and the behavior of other vehicles. To keep the problem manageable, we focused on predicting a vehicle’s position 1 second into the future using its recent motion history.
 
 One of the biggest takeaways was the importance of preprocessing and feature engineering. By converting trajectories into relative movement features instead of using absolute coordinates, the model focused on motion patterns rather than specific map locations. Unfortunately, the model still lacks some important contextual information such as lane geometry, traffic signals, and interactions with nearby vehicles.
