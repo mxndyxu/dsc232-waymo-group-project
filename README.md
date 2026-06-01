@@ -443,6 +443,6 @@ Given additional time and resources, we would explore larger portions of the Way
 
 ## Statement of Collaboration
 Kristen Oleson -- TODO<br>
-Cory Ornelas -- TODO<br>
+Cory Ornelas -- did not code but did the write-up and gave feedback during the steps and collaborated<br>
 Audrius Pasvenskas -- TODO<br>
 Mandy Xu -- TODO <br>
