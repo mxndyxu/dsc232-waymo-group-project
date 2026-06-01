@@ -447,6 +447,6 @@ Given additional time and resources, we would explore larger portions of the Way
 
 ## Statement of Collaboration
 Kristen Oleson -- TODO<br>
-Cory Ornelas -- did not code but worked on the write-up and gave feedback during the steps and collaborated<br>
+Cory Ornelas -- worked on the write-up and provided feedback during all milestones and attended all meetings<br>
 Audrius Pasvenskas -- wrote the code, attended the meetings, and provided the feedback on the write-ups.<br>
 Mandy Xu -- attended all meetings, worked on write-ups for all milestones, and provided feedback<br>
