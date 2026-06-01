@@ -445,4 +445,4 @@ Given additional time and resources, we would explore larger portions of the Way
 Kristen Oleson -- TODO<br>
 Cory Ornelas -- did not code but worked on the write-up and gave feedback during the steps and collaborated<br>
 Audrius Pasvenskas -- TODO<br>
-Mandy Xu -- TODO <br>
+Mandy Xu -- attended all meetings, worked on write-ups for all milestones, and provided feedback<br>
