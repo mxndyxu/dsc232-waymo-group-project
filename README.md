@@ -255,6 +255,10 @@ rmse_train_y = evaluator_y.evaluate(pred_train_y)
 ```
 
 #### Hyperparameter Tuning
+To evaluate whether additional model complexity could improve predictive performance, a second XGBoost model was trained using deeper trees and a larger ensemble size. The baseline model used a maximum tree depth of 5 and 20 estimators, while the tuned model increased these values to a maximum depth of 10 and 40 estimators.
+
+The motivation for increasing max_depth was to allow the model to learn more complex nonlinear relationships in vehicle motion patterns. Deeper trees can capture more detailed interactions between trajectory features, velocity estimates, and future displacement behavior. Increasing n_estimators adds more boosting rounds, enabling the ensemble to iteratively correct errors made by previous trees.
+
 **Baseline Model**
 
 Hyperparameters:
@@ -289,6 +293,8 @@ pred_deep_x = xgb_model_deep.transform(eval_df)
 evaluator_deep = RegressionEvaluator(labelCol="target_dx_1s", predictionCol="prediction", metricName="rmse")
 rmse_deep_x = evaluator_deep.evaluate(pred_deep_x)
 ```
+
+The tuned model was evaluated using the same train-test split and RMSE metric as the baseline model. Comparing these two configurations allowed us to assess the tradeoff between model complexity and generalization performance, and determine whether the additional capacity improved trajectory prediction accuracy on unseen data.
 
 ### Model 2: PCA + XGBoost Regression
 The second model extended the XGBoost regression pipeline by incorporating Principal Component Analysis (PCA) for dimensionality reduction before model training. The goal of this approach was to reduce feature dimensionality, improve computational efficiency, and evaluate whether compressed trajectory representations could preserve predictive performance.
